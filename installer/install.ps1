@@ -213,7 +213,13 @@ function Try-GetReleaseBinaries {
         $gui = Join-Path $extract 'shield-ui.exe'
         Test-PeBinary $cli 'released SHIELD CLI'
         Test-PeBinary $gui 'released SHIELD GUI'
+        $cliSignature = Get-AuthenticodeSignature -FilePath $cli
+        $guiSignature = Get-AuthenticodeSignature -FilePath $gui
+        if ($cliSignature.Status -ne 'Valid' -or $guiSignature.Status -ne 'Valid') {
+            throw '[SHIELD] Release Authenticode signature verification failed.'
+        }
         Write-Host "[SHIELD] Release integrity checkpoint: PASS ($actual)"
+        Write-Host "[SHIELD] Publisher: $($cliSignature.SignerCertificate.Subject)"
         $script:ReleaseCliBinary = $cli
         $script:ReleaseGuiBinary = $gui
         return $true
