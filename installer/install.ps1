@@ -12,19 +12,13 @@ $InstallDir = if ($env:SHIELD_INSTALL_DIR) { $env:SHIELD_INSTALL_DIR } else { Jo
 function Show-Menu {
     Clear-Host
     Write-Host ''
-    Write-Host '  ███████╗██╗  ██╗██╗███████╗██╗     ██████╗ '
-    Write-Host '  ██╔════╝██║  ██║██║██╔════╝██║     ██╔══██╗'
-    Write-Host '  ███████╗███████║██║█████╗  ██║     ██║  ██║'
-    Write-Host '  ╚════██║██╔══██║██║██╔══╝  ██║     ██║  ██║'
-    Write-Host '  ███████║██║  ██║██║███████╗███████╗██████╔╝'
-    Write-Host '  ╚══════╝╚═╝  ╚═╝╚═╝╚══════╝╚══════╝╚═════╝ '
-    Write-Host ''
+    Write-Host '  SHIELD - Binesh OS Security'
     Write-Host '  Open-source cross-platform endpoint security'
     Write-Host ''
     Write-Host '  How would you like to run SHIELD?'
     Write-Host ''
     Write-Host '  [1] Live'
-    Write-Host '      Build and run without installing'
+    Write-Host '      Run SHIELD without a persistent installation'
     Write-Host ''
     Write-Host '  [2] Install as Application'
     Write-Host '      Install the SHIELD CLI/application'
@@ -44,6 +38,67 @@ function Get-Selection {
     return $choice
 }
 
+function Refresh-UserPath {
+    $UserPath = [Environment]::GetEnvironmentVariable('Path','User')
+    if ($UserPath) {
+        $env:Path = $UserPath + ';' + [Environment]::GetEnvironmentVariable('Path','Machine')
+    }
+}
+
+function Ensure-Winget {
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        throw 'Windows Package Manager (winget) is required to bootstrap missing build tools. Please install App Installer from Microsoft Store, then run this command again.'
+    }
+}
+
+function Ensure-Git {
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        return
+    }
+
+    Write-Host '[SHIELD] Git is not installed. Installing Git automatically...'
+    Ensure-Winget
+    winget install --id Git.Git -e --source winget --accept-source-agreements --accept-package-agreements
+    Refresh-UserPath
+
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        $GitExe = Join-Path $env:ProgramFiles 'Git\cmd\git.exe'
+        if (Test-Path $GitExe) {
+            $env:Path = (Split-Path $GitExe) + ';' + $env:Path
+        }
+    }
+
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        throw 'Git installation completed but git.exe is not available in this PowerShell session. Close PowerShell, open a new window, and run the SHIELD command again.'
+    }
+}
+
+function Ensure-Rust {
+    if (Get-Command cargo -ErrorAction SilentlyContinue) {
+        return
+    }
+
+    $CargoPath = Join-Path $env:USERPROFILE '.cargo\bin\cargo.exe'
+    if (Test-Path $CargoPath) {
+        $env:Path = (Join-Path $env:USERPROFILE '.cargo\bin') + ';' + $env:Path
+        return
+    }
+
+    Write-Host '[SHIELD] Rust/Cargo is not installed. Installing Rust automatically...'
+    Ensure-Winget
+    winget install --id Rustlang.Rustup -e --source winget --accept-source-agreements --accept-package-agreements
+    Refresh-UserPath
+
+    $CargoDir = Join-Path $env:USERPROFILE '.cargo\bin'
+    if (Test-Path (Join-Path $CargoDir 'cargo.exe')) {
+        $env:Path = $CargoDir + ';' + $env:Path
+    }
+
+    if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
+        throw 'Rust installation completed but cargo.exe is not available in this PowerShell session. Close PowerShell, open a new window, and run the SHIELD command again.'
+    }
+}
+
 $choice = Get-Selection
 
 if ($choice -eq '4') {
@@ -53,15 +108,11 @@ if ($choice -eq '4') {
 }
 
 Write-Host ''
-Write-Host '[SHIELD] Preparing installation...'
+Write-Host '[SHIELD] Preparing SHIELD...'
+Write-Host '[SHIELD] Checking required build tools...'
 
-if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-    throw 'Git is required by the current development bootstrapper.'
-}
-
-if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
-    throw 'Rust/Cargo is required by the current development bootstrapper.'
-}
+Ensure-Git
+Ensure-Rust
 
 $TempDir = Join-Path $env:TEMP ('shield-install-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
@@ -72,11 +123,21 @@ try {
 
     Write-Host '[SHIELD] Downloading source...'
     git clone --depth 1 --branch $Branch ('https://github.com/' + $Repo + '.git') $SourceDir
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Unable to download the SHIELD source repository.'
+    }
+
+    if (-not (Test-Path (Join-Path $SourceDir 'Cargo.toml'))) {
+        throw 'The selected SHIELD revision does not contain Cargo.toml. The installer expects the Rust application build to be present.'
+    }
 
     Write-Host '[SHIELD] Building SHIELD...'
     Push-Location $SourceDir
     try {
         cargo build --release
+        if ($LASTEXITCODE -ne 0) {
+            throw 'SHIELD build failed.'
+        }
     } finally {
         Pop-Location
     }
@@ -93,7 +154,7 @@ try {
             Write-Host '[SHIELD] Nothing will be permanently installed.'
             Write-Host ''
             & $Binary status
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            exit $LASTEXITCODE
         }
 
         '2' {
@@ -109,12 +170,13 @@ try {
                 [Environment]::SetEnvironmentVariable('Path', (($Entries + $InstallDir) -join ';'), 'User')
             }
 
+            $env:Path = $InstallDir + ';' + $env:Path
+
             Write-Host ''
             Write-Host '[SHIELD] Application installed successfully.'
             Write-Host "[SHIELD] Location: $InstallDir"
             Write-Host ''
-            Write-Host '[SHIELD] Open a new PowerShell window and run:'
-            Write-Host '          shield status'
+            & (Join-Path $InstallDir 'shield.exe') status
         }
 
         '3' {
@@ -128,7 +190,7 @@ try {
             Write-Host '[SHIELD] Continuous protection service registration is not yet enabled in this development release.'
             Write-Host '[SHIELD] No incomplete or non-functional Windows service was created.'
             Write-Host ''
-            Write-Host '[SHIELD] This option will become the persistent protection mode in the service milestone.'
+            Write-Host '[SHIELD] The service layer will be enabled when the SHIELD protection daemon and secure service boundary are ready.'
         }
     }
 }
