@@ -2,79 +2,107 @@
 
 ## Design goal
 
-Keep the security-sensitive core small, modular, testable, and independent from platform-specific implementations.
+Keep the security-sensitive core small, modular, testable, cross-platform, and independently usable.
+
+Binesh OS is a first-class consumer and host of SHIELD, not a separate implementation.
 
 ## Logical architecture
 
-CLI / Dashboard / API
-        |
-    SHIELD Core
-        |
-  +-----+------+
-  |            |
-Scanner      Platform
-  |            |
-YARA/       OS adapters
-ClamAV
-  |            |
-  +-----+------+
-        |
- Event Normalizer
-        |
- Correlation Engine
-        |
-    Risk Engine
-        |
- Response Manager
-   /       |       \
- Alert  Quarantine  Block
+```text
+                    SHIELD CORE
+                        |
+       +----------------+----------------+
+       |                |                |
+   Interfaces        Security        Platform
+       |              Engine            |
+  +----+----+           |         +------+------+
+  |         |           |         |             |
+ CLI      Local API   Detection  Windows      Linux
+                         |         macOS      Binesh OS
+                         |
+                  Correlation/Risk
+                         |
+                     Response
+                         |
+             +-----------+-----------+
+             |           |           |
+           Alert     Quarantine    Block
+```
+
+## Binesh OS relationship
+
+```text
++------------------------------------------------+
+|                  Binesh OS                     |
+|                                                |
+|  Shell / Settings / Notifications / Packages   |
+|                    |                           |
+|              SHIELD API/Event Bus              |
++--------------------+---------------------------+
+                     |
++--------------------v---------------------------+
+|                 SHIELD CORE                    |
+|                                                |
+| Detection | Intelligence | Risk | Response     |
++------------------------------------------------+
+```
+
+Binesh OS owns the operating-system experience. SHIELD owns security decisions.
 
 ## Boundaries
 
-Core contains platform-independent domain logic.
+### Core
 
-Platform-specific code belongs under platforms/.
+Platform-independent domain logic.
 
-External security engines are adapters and should not own SHIELD state.
+### Engines
+
+Security engine adapters such as YARA, ClamAV, and future engines.
+
+### Platforms
+
+OS-specific collectors, services, file/process integrations, and privileged operations.
+
+### Interfaces
+
+CLI, local API, GUI, and OS integrations.
+
+### Binesh OS adapter
+
+The Binesh OS adapter translates SHIELD events and operations into the OS-native security framework.
 
 ## Event flow
 
-External signal -> engine adapter -> normalized event -> validation -> correlation -> risk assessment -> policy evaluation -> response -> audit record.
+External signal -> engine adapter -> normalized event -> validation -> correlation -> risk assessment -> policy evaluation -> response -> audit record -> event consumers.
 
-## Security boundaries
+## Binesh OS event flow
 
-Distinguish untrusted file content, untrusted event data, privileged operations, engine processes, local API clients, configuration, and update artifacts.
-
-Privileged operations should be minimized and isolated.
-
-## Repository layout
-
-cmd/
-core/
-engines/
-platforms/
-intelligence/
-plugins/
-api/
-dashboard/
-rules/
-installer/
-tests/
-docs/
-scripts/
-.github/
-
-## Technology direction
-
-Rust is the preferred implementation language for the security-sensitive core.
-
-Other languages may be used for platform tooling, UI, scripts, or integrations when justified.
+```text
+Binesh OS event
+      |
+      v
+SHIELD platform adapter
+      |
+      v
+Normalized SHIELD event
+      |
+      v
+Detection / correlation / risk
+      |
+      +----> SHIELD response
+      |
+      +----> Binesh OS security event
+```
 
 ## Architectural rules
-1. Prefer interfaces over hard-coded engines.
-2. Do not make AI mandatory.
-3. Do not make cloud services mandatory.
-4. Keep destructive actions behind explicit policy.
-5. Every detection should be explainable.
-6. Security decisions should be testable.
-7. Platform-specific code belongs behind adapters.
+
+1. Security logic lives in SHIELD Core.
+2. Binesh OS must consume stable SHIELD interfaces.
+3. Platform-specific code belongs behind adapters.
+4. External engines must not own SHIELD state.
+5. AI is optional.
+6. Cloud services are optional.
+7. Destructive actions require explicit policy.
+8. Every detection should be explainable.
+9. Security decisions must be testable.
+10. Binesh OS integration must not create a second detection engine.
