@@ -116,3 +116,8 @@ See `SECURITY.md` for vulnerability reporting.
 ## License
 
 Apache-2.0.
+
+
+### Windows installer fallback
+
+The Windows IRM installer is release-first. If a verified x64/ARM64 release is unavailable, it continues with a source build and warns that Git and Rust/Cargo are required. This keeps development installations usable while preserving verification for published releases.
