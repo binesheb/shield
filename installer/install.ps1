@@ -1,3 +1,5 @@
+param([switch]$DeveloperBuild)
+
 # SHIELD single-command Windows bootstrap
 # PowerShell 5.1+
 # Production goal: zero developer prerequisites for end users.
