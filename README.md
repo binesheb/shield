@@ -2,7 +2,7 @@
 
 **SHIELD** is the open-source security and threat-protection platform of the **Binesh OS ecosystem**.
 
-It is designed as a cross-platform security core that can run independently on Windows, Linux, and macOS, while also serving as an integrated security layer for Binesh OS.
+It is a cross-platform security core that can run independently on Windows, Linux, and macOS, while serving as an integrated security layer for Binesh OS.
 
 > Open source. Cross-platform. Local-first. Modular. Binesh OS security layer.
 
@@ -10,19 +10,9 @@ It is designed as a cross-platform security core that can run independently on W
 
 SHIELD is a standalone project and a native Binesh OS component.
 
-Binesh OS may use SHIELD as its security subsystem for:
+Binesh OS may use SHIELD for malware and threat detection, endpoint protection, security events, threat intelligence, quarantine, response, system security status, application/package trust, and future boot/runtime integrity.
 
-- malware and threat detection
-- endpoint protection
-- file and process security
-- security events
-- threat intelligence
-- quarantine and response
-- system health and security status
-- future application and package trust
-- future boot and runtime integrity
-
-The security core remains reusable outside Binesh OS. Binesh OS integration must consume SHIELD's stable APIs/events rather than fork the detection logic.
+The security core remains reusable outside Binesh OS. Binesh OS integration consumes SHIELD's stable APIs/events rather than forking detection logic.
 
 ## Status
 
@@ -31,8 +21,6 @@ Early development / foundation phase.
 ## Quick install
 
 ### Windows
-
-Run one command:
 
 ```powershell
 irm https://raw.githubusercontent.com/binesheb/shield/main/installer/install.ps1 | iex
@@ -66,22 +54,19 @@ A local API/event interface will become the integration contract for the future 
 ## Architecture
 
 ```text
-                         SHIELD
-                           CORE
-                            |
-              +-------------+-------------+
-              |             |             |
-             CLI        Local API      Event Bus
-              |             |             |
-              |          GUI/API      Binesh OS
-              |                         |
-              +------------+------------+
-                           |
-                    Security Services
-                           |
-             +-------------+-------------+
-             |             |             |
-          Detection     Intelligence   Response
+                         SHIELD CORE
+                              |
+              +---------------+---------------+
+              |               |               |
+             CLI          Local API        Event Bus
+              |               |               |
+           Users          GUI/API         Binesh OS
+                              |
+                       Security Services
+                              |
+                +-------------+-------------+
+                |             |             |
+             Detection   Intelligence   Response
 ```
 
 ## Goals
@@ -103,16 +88,14 @@ A local API/event interface will become the integration contract for the future 
 - CLI
 - configuration
 - normalized security events
-- SHA-256 file scanning
 - scanner abstraction
-- YARA integration
-- ClamAV integration
+- SHA-256 scanning
+- YARA and ClamAV adapters
 - quarantine
 - threat history
 - logging
 - tests and CI
-- Binesh OS integration specification
-- contributor documentation
+- Binesh OS integration contract
 
 ## Documentation
 
@@ -126,7 +109,7 @@ A local API/event interface will become the integration contract for the future 
 
 ## Security
 
-SHIELD is security-sensitive software. Do not report vulnerabilities through public GitHub issues. See `SECURITY.md`.
+See `SECURITY.md` for vulnerability reporting.
 
 ## License
 
