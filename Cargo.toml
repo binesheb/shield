@@ -1,8 +1,8 @@
 [package]
 name = "shield"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.95"
 description = "Open-source, cross-platform endpoint security platform"
 license = "Apache-2.0"
 repository = "https://github.com/binesheb/shield"
@@ -12,11 +12,21 @@ categories = ["command-line-utilities", "os"]
 
 [dependencies]
 anyhow = "1"
+chrono = { version = "0.4.45", features = ["serde", "clock"] }
 clap = { version = "4", features = ["derive"] }
+eframe = "0.36.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
 walkdir = "2"
 
+[target.'cfg(windows)'.dependencies]
+windows-service = "0.8.1"
+
 [dev-dependencies]
 tempfile = "3"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
