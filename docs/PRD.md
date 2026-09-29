@@ -133,6 +133,7 @@ Out of scope: mandatory cloud/AI, enterprise fleet management, mobile clients, a
 5. Network detection
 6. Correlation and risk engine
 7. GUI/security center — implemented for Windows
+8. Independent YARA-X detection engine — implemented
 8. Release packaging, provenance and signing — implemented in CI
 9. Optional AI
 10. Fleet management
