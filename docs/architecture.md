@@ -4,7 +4,7 @@
 
 Keep the security-sensitive core small, modular, testable, cross-platform, and independently usable.
 
-Binesh OS is a first-class consumer and host of SHIELD, not a separate implementation.
+Binesh OS is a first-class host/integration target, not a separate antivirus implementation.
 
 ## Logical architecture
 
@@ -14,19 +14,15 @@ Binesh OS is a first-class consumer and host of SHIELD, not a separate implement
        +----------------+----------------+
        |                |                |
    Interfaces        Security        Platform
-       |              Engine            |
+       |              Engines            |
   +----+----+           |         +------+------+
   |         |           |         |             |
- CLI      Local API   Detection  Windows      Linux
-                         |         macOS      Binesh OS
+ CLI      Local API   Detection  Windows      Binesh OS
+                         |         Linux        macOS
                          |
                   Correlation/Risk
                          |
-                     Response
-                         |
-             +-----------+-----------+
-             |           |           |
-           Alert     Quarantine    Block
+                      Response
 ```
 
 ## Binesh OS relationship
@@ -34,15 +30,13 @@ Binesh OS is a first-class consumer and host of SHIELD, not a separate implement
 ```text
 +------------------------------------------------+
 |                  Binesh OS                     |
-|                                                |
-|  Shell / Settings / Notifications / Packages   |
+| Shell / Settings / Notifications / Packages    |
 |                    |                           |
 |              SHIELD API/Event Bus              |
 +--------------------+---------------------------+
                      |
 +--------------------v---------------------------+
 |                 SHIELD CORE                    |
-|                                                |
 | Detection | Intelligence | Risk | Response     |
 +------------------------------------------------+
 ```
@@ -51,25 +45,11 @@ Binesh OS owns the operating-system experience. SHIELD owns security decisions.
 
 ## Boundaries
 
-### Core
-
-Platform-independent domain logic.
-
-### Engines
-
-Security engine adapters such as YARA, ClamAV, and future engines.
-
-### Platforms
-
-OS-specific collectors, services, file/process integrations, and privileged operations.
-
-### Interfaces
-
-CLI, local API, GUI, and OS integrations.
-
-### Binesh OS adapter
-
-The Binesh OS adapter translates SHIELD events and operations into the OS-native security framework.
+- **Core:** platform-independent domain logic.
+- **Engines:** YARA, ClamAV, and future engine adapters.
+- **Platforms:** OS-specific collectors, services, and privileged operations.
+- **Interfaces:** CLI, local API, GUI, and OS integrations.
+- **Binesh OS adapter:** translates SHIELD events/operations into the OS-native security framework.
 
 ## Event flow
 
@@ -80,26 +60,21 @@ External signal -> engine adapter -> normalized event -> validation -> correlati
 ```text
 Binesh OS event
       |
-      v
 SHIELD platform adapter
       |
-      v
 Normalized SHIELD event
       |
-      v
 Detection / correlation / risk
-      |
       +----> SHIELD response
-      |
       +----> Binesh OS security event
 ```
 
 ## Architectural rules
 
 1. Security logic lives in SHIELD Core.
-2. Binesh OS must consume stable SHIELD interfaces.
+2. Binesh OS consumes stable SHIELD interfaces.
 3. Platform-specific code belongs behind adapters.
-4. External engines must not own SHIELD state.
+4. External engines do not own SHIELD state.
 5. AI is optional.
 6. Cloud services are optional.
 7. Destructive actions require explicit policy.
