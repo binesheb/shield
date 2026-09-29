@@ -279,6 +279,17 @@ try {
         Write-Host "[SHIELD] GUI checkpoint: PASS ($guiHash)"
     }
 
+    $rulesSource = Join-Path (Split-Path $cliBinary) 'rules'
+    if (-not (Test-Path $rulesSource -PathType Container)) {
+        $sourceRules = if ($sourceDir) { Join-Path $sourceDir 'rules' } else { $null }
+        if ($sourceRules -and (Test-Path $sourceRules -PathType Container)) {
+            Copy-Item $sourceRules $rulesSource -Recurse -Force
+        }
+    }
+    if (-not (Test-Path $rulesSource -PathType Container)) {
+        throw '[SHIELD] Bundled YARA rules are missing from the deployment package.'
+    }
+
     if ($choice -eq '1') {
         Write-Host ''
         Write-Host '[SHIELD] LIVE mode'
@@ -293,6 +304,7 @@ try {
         New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
         Copy-Item $cliBinary (Join-Path $installRoot 'shield.exe') -Force
         Copy-Item $guiBinary (Join-Path $installRoot 'shield-ui.exe') -Force
+        Copy-Item $rulesSource (Join-Path $installRoot 'rules') -Recurse -Force
 
         $installedCli = Join-Path $installRoot 'shield.exe'
         $installedGui = Join-Path $installRoot 'shield-ui.exe'
@@ -317,6 +329,7 @@ try {
         New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
         Copy-Item $cliBinary (Join-Path $installRoot 'shield.exe') -Force
         Copy-Item $guiBinary (Join-Path $installRoot 'shield-ui.exe') -Force
+        Copy-Item $rulesSource (Join-Path $installRoot 'rules') -Recurse -Force
 
         $installedCli = Join-Path $installRoot 'shield.exe'
         $installedGui = Join-Path $installRoot 'shield-ui.exe'
