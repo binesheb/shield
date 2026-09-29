@@ -73,10 +73,10 @@ Installs the verified CLI and GUI, registers the SHIELD Windows service with the
 
 ## Version
 
-Set `SHIELD_VERSION` to a branch or tag:
+Set `SHIELD_VERSION` to a release tag:
 
 ```powershell
-$env:SHIELD_VERSION='v0.1.0'
+$env:SHIELD_VERSION='v0.2.0'
 irm https://raw.githubusercontent.com/binesheb/shield/main/installer/install.ps1 | iex
 ```
 
