@@ -2,8 +2,9 @@
 
 use eframe::egui;
 use shield::{
-    read_state, windows_defender_scan, windows_defender_status, windows_defender_threats,
-    windows_defender_update, DefenderStatus, StateSnapshot, ThreatRecord, VERSION,
+    default_yara_rules_dir, read_state, windows_defender_scan, windows_defender_status,
+    windows_defender_threats, windows_defender_update, yara_scan, StateSnapshot, ThreatRecord,
+    YaraMatch, VERSION,
 };
 use std::path::PathBuf;
 
@@ -12,6 +13,7 @@ enum Page {
     Dashboard,
     Scan,
     Threats,
+    Yara,
     Protection,
 }
 
@@ -19,6 +21,7 @@ struct ShieldApp {
     page: Page,
     state: StateSnapshot,
     threats: Vec<ThreatRecord>,
+    yara_matches: Vec<YaraMatch>,
     scan_path: String,
     busy: bool,
     message: String,
@@ -32,6 +35,7 @@ impl ShieldApp {
             page: Page::Dashboard,
             state,
             threats,
+            yara_matches: Vec::new(),
             scan_path: String::new(),
             busy: false,
             message: String::from("Ready"),
@@ -113,6 +117,7 @@ impl ShieldApp {
                     (Page::Dashboard, "Dashboard"),
                     (Page::Scan, "Scan"),
                     (Page::Threats, "Threats"),
+                    (Page::Yara, "YARA-X"),
                     (Page::Protection, "Protection"),
                 ] {
                     if ui.selectable_label(self.page == page, label).clicked() {
@@ -238,6 +243,53 @@ impl ShieldApp {
         });
     }
 
+    fn yara_scan(&mut self) {
+        self.busy = true;
+        self.message = "Running YARA-X scan...".to_owned();
+        let target = self.scan_path.trim();
+        if target.is_empty() {
+            self.message = "Enter a file or directory for YARA-X scanning.".to_owned();
+            self.busy = false;
+            return;
+        }
+        match yara_scan(std::path::Path::new(target), &default_yara_rules_dir()) {
+            Ok(matches) => {
+                self.yara_matches = matches;
+                self.message = format!("YARA-X scan complete: {} match(es).", self.yara_matches.len());
+            }
+            Err(error) => {
+                self.yara_matches.clear();
+                self.message = format!("YARA-X scan failed: {error}");
+            }
+        }
+        self.busy = false;
+    }
+
+    fn yara_page(&mut self, ui: &mut egui::Ui) {
+        ui.heading("YARA-X");
+        ui.label("Independent rule-based detection engine.");
+        ui.add_space(12.0);
+        ui.label("Target file or directory");
+        ui.text_edit_singleline(&mut self.scan_path);
+        if ui.add_enabled(!self.busy && !self.scan_path.trim().is_empty(), egui::Button::new("Run YARA-X scan")).clicked() {
+            self.yara_scan();
+        }
+        ui.add_space(16.0);
+        if self.yara_matches.is_empty() {
+            ui.group(|ui| {
+                ui.label("No YARA-X matches in the latest scan.");
+            });
+        } else {
+            for finding in &self.yara_matches {
+                ui.group(|ui| {
+                    ui.strong(&finding.rule);
+                    ui.label(format!("Namespace: {}", finding.namespace));
+                    ui.monospace(&finding.path);
+                });
+            }
+        }
+    }
+
     fn protection_page(&mut self, ui: &mut egui::Ui) {
         ui.heading("Protection controls");
         ui.label("SHIELD does not silently disable or weaken the operating system's security controls.");
@@ -289,6 +341,7 @@ impl eframe::App for ShieldApp {
                 Page::Dashboard => self.dashboard(ui),
                 Page::Scan => self.scan_page(ui),
                 Page::Threats => self.threats_page(ui),
+                Page::Yara => self.yara_page(ui),
                 Page::Protection => self.protection_page(ui),
             }
             ui.add_space(12.0);
