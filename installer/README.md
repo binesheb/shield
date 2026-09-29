@@ -1,68 +1,75 @@
-# SHIELD Installers
+# SHIELD Installer
 
-## Windows
+## One command
 
-### Application mode
-
-Default mode. Installs the SHIELD CLI application:
+Windows users run exactly one command:
 
 ```powershell
 irm https://raw.githubusercontent.com/binesheb/shield/main/installer/install.ps1 | iex
 ```
 
-### Live mode
+SHIELD then presents an interactive menu:
 
-Builds SHIELD and runs it without installing a persistent copy:
+```text
+How would you like to run SHIELD?
 
-```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/binesheb/shield/main/installer/install.ps1))) -Mode Live
+[1] Live
+    Build and run without installing
+
+[2] Install as Application
+    Install the SHIELD CLI/application
+
+[3] Install as Service
+    Install for continuous endpoint protection
+
+[4] Exit
 ```
 
-Live mode is intended for testing, evaluation, and development.
+The user selects how SHIELD should proceed.
 
-### Service mode
+## Current implementation
 
-Installs the SHIELD binary and selects service deployment:
+The development bootstrap builds SHIELD from source and therefore requires:
 
-```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/binesheb/shield/main/installer/install.ps1))) -Mode Service
-```
+- Windows
+- PowerShell
+- Git
+- Rust/Cargo
 
-The current release does not register a Windows service because continuous protection and the privileged service boundary are not implemented yet. The installer reports this explicitly instead of creating a non-functional service.
+### Live
 
-### Application mode
+Nothing is permanently installed.
 
-```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/binesheb/shield/main/installer/install.ps1))) -Mode Application
-```
+### Application
 
-Application mode currently installs the CLI. The desktop GUI will be added without changing the security core.
+The SHIELD binary is installed under the user's local application directory and added to the user's PATH.
 
-## Version selection
+### Service
+
+The binary is installed, but the Windows service is not registered yet. Continuous protection requires the service architecture, privilege boundary, IPC, recovery, update, and uninstall behavior to be implemented first.
+
+The installer intentionally does not create a non-functional service.
+
+## Version
+
+Set `SHIELD_VERSION` before running the same command to select a branch or tag:
 
 ```powershell
 $env:SHIELD_VERSION='v0.1.0'; irm https://raw.githubusercontent.com/binesheb/shield/main/installer/install.ps1 | iex
 ```
 
-## Architecture
+## Production release plan
 
-The intended model is:
+The development source bootstrap will eventually be replaced/extended by signed prebuilt artifacts.
 
-```text
-                 SHIELD CORE
-                      |
-        +-------------+-------------+
-        |             |             |
-       LIVE        SERVICE      APPLICATION
-        |             |             |
-     CLI/test    endpoint       CLI + GUI
-                 protection
-```
+Production installation should verify:
 
-All three modes use the same SHIELD Core. They must not implement separate detection logic.
+- HTTPS
+- authenticated release metadata
+- artifact hash
+- publisher signature
+- release version
+- platform and architecture
+- rollback compatibility
 
-## Security
-
-The current bootstrap builds from source and requires Git and Rust/Cargo.
-
-Production binary distribution must add signed release artifacts, integrity metadata, signature verification, rollback support, and authenticated update metadata before it is treated as a production-grade security-product installer.
+The user experience should remain the same: **one command → select mode → SHIELD installs or runs.**
