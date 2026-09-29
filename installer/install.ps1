@@ -241,6 +241,7 @@ Write-Host ''
 Write-Host '[SHIELD] Preparing SHIELD...'
 
 $tempDir = Join-Path $env:TEMP ('shield-install-' + [guid]::NewGuid().ToString('N'))
+$sourceDir = $null
 New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 
 try {
