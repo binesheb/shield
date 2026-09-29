@@ -235,7 +235,7 @@ mod shield_windows_service {
             account_name: Some(OsString::from("LocalSystem")),
             account_password: None,
         };
-        let service = manager.create_service(&info, ServiceAccess::START | ServiceAccess::QUERY_STATUS)?;
+        let service = manager.create_service(&info, ServiceAccess::START | ServiceAccess::QUERY_STATUS | ServiceAccess::CHANGE_CONFIG)?;
         service.set_description("SHIELD endpoint security and monitoring service.")?;
         service.start(&[])?;
         println!("SHIELD service installed and started.");
