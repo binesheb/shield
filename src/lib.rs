@@ -215,7 +215,22 @@ fn powershell(script: &str) -> Result<String> {
 }
 
 pub fn default_yara_rules_dir() -> PathBuf {
-    data_dir().join("rules")
+    let installed = data_dir().join("rules");
+    if installed.exists() {
+        return installed;
+    }
+
+    if let Ok(exe) = std::env::current_exe() {
+        let bundled = exe
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join("rules");
+        if bundled.exists() {
+            return bundled;
+        }
+    }
+
+    installed
 }
 
 pub fn yara_scan(target: &Path, rules_dir: &Path) -> Result<Vec<YaraMatch>> {
