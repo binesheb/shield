@@ -31,8 +31,10 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Generate lockfile
+        run: cargo generate-lockfile
       - name: Build release
-        run: cargo build --release --bins --target ${{ matrix.target }}
+        run: cargo build --locked --release --bins --target ${{ matrix.target }}
 
       - name: Sign Windows binaries
         shell: pwsh
@@ -70,6 +72,7 @@ jobs:
           New-Item -ItemType Directory -Path $stage -Force | Out-Null
           Copy-Item "target\${{ matrix.target }}\release\shield.exe" (Join-Path $stage 'shield.exe')
           Copy-Item "target\${{ matrix.target }}\release\shield-ui.exe" (Join-Path $stage 'shield-ui.exe')
+          Copy-Item rules (Join-Path $stage 'rules') -Recurse
           Copy-Item README.md (Join-Path $stage 'README.md')
           Copy-Item SECURITY.md (Join-Path $stage 'SECURITY.md')
           $zip = Join-Path $PWD "shield-windows-${{ matrix.name }}.zip"
