@@ -179,6 +179,50 @@ function New-StartMenuShortcut {
     Write-Host "[SHIELD] Start Menu shortcut: $shortcutPath"
 }
 
+function Try-GetReleaseBinaries {
+    param([string]$Destination)
+    try {
+        $arch = $env:PROCESSOR_ARCHITECTURE
+        if ($env:PROCESSOR_ARCHITEW6432) { $arch = $env:PROCESSOR_ARCHITEW6432 }
+        $assetArch = switch ($arch.ToUpperInvariant()) {
+            'ARM64' { 'arm64' }
+            'AMD64' { 'x64' }
+            default { return $false }
+        }
+        $releaseUrl = if ($Version -eq 'main') { "https://api.github.com/repos/$Repo/releases/latest" } else { "https://api.github.com/repos/$Repo/releases/tags/$Version" }
+        $headers = @{ 'User-Agent' = 'SHIELD-Installer' }
+        $release = Invoke-RestMethod -UseBasicParsing -Headers $headers -Uri $releaseUrl
+        $zipName = "shield-windows-$assetArch.zip"
+        $checksumName = "sha256-$assetArch.txt"
+        $zipAsset = @($release.assets | Where-Object { $_.name -eq $zipName })[0]
+        $checksumAsset = @($release.assets | Where-Object { $_.name -eq $checksumName })[0]
+        if (-not $zipAsset -or -not $checksumAsset) { return $false }
+        Write-Host "[SHIELD] Release found: $($release.tag_name) ($assetArch)"
+        $zipPath = Join-Path $Destination $zipName
+        $checksumPath = Join-Path $Destination $checksumName
+        Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri $zipAsset.browser_download_url -OutFile $zipPath
+        Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri $checksumAsset.browser_download_url -OutFile $checksumPath
+        Test-File $zipPath 'SHIELD release package'
+        Test-File $checksumPath 'SHIELD release checksum'
+        $expected = (Get-Content $checksumPath | Select-Object -First 1).Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries)[0].ToLowerInvariant()
+        $actual = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($expected -ne $actual) { throw '[SHIELD] Release SHA-256 verification failed.' }
+        $extract = Join-Path $Destination 'release'
+        Expand-Archive -LiteralPath $zipPath -DestinationPath $extract -Force
+        $cli = Join-Path $extract 'shield.exe'
+        $gui = Join-Path $extract 'shield-ui.exe'
+        Test-PeBinary $cli 'released SHIELD CLI'
+        Test-PeBinary $gui 'released SHIELD GUI'
+        Write-Host "[SHIELD] Release integrity checkpoint: PASS ($actual)"
+        $script:ReleaseCliBinary = $cli
+        $script:ReleaseGuiBinary = $gui
+        return $true
+    } catch {
+        Write-Host '[SHIELD] No verified release available; using source bootstrap.'
+        return $false
+    }
+}
+
 $choice = Get-Selection
 if ($choice -eq '4') {
     Write-Host '[SHIELD] Exiting.'
@@ -189,43 +233,45 @@ if ($choice -eq '3') { Ensure-Admin }
 
 Write-Host ''
 Write-Host '[SHIELD] Preparing SHIELD...'
-Write-Host '[SHIELD] Checking required build tools...'
-Ensure-Git
-Ensure-Rust
 
 $tempDir = Join-Path $env:TEMP ('shield-install-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 
 try {
-    $sourceDir = Join-Path $tempDir 'source'
-    $branch = if ($Version -eq 'main') { 'main' } else { $Version }
-
-    Write-Host '[SHIELD] Downloading source...'
-    git clone --depth 1 --branch $branch ('https://github.com/' + $Repo + '.git') $sourceDir
-    if ($LASTEXITCODE -ne 0) { throw '[SHIELD] Source download failed.' }
-
-    Test-File (Join-Path $sourceDir 'Cargo.toml') 'SHIELD source manifest'
-    if (-not (Test-Path (Join-Path $sourceDir '.git') -PathType Container)) { throw '[SHIELD] Git checkout verification failed.' }
-    Write-Host '[SHIELD] Source checkpoint: PASS'
-
-    Push-Location $sourceDir
-    try {
-        Write-Host '[SHIELD] Building CLI + GUI...'
-        cargo build --release --bins
-        if ($LASTEXITCODE -ne 0) { throw '[SHIELD] Rust release build failed.' }
-    } finally {
-        Pop-Location
+    $releaseReady = Try-GetReleaseBinaries $tempDir
+    if ($releaseReady) {
+        $cliBinary = $script:ReleaseCliBinary
+        $guiBinary = $script:ReleaseGuiBinary
+        $cliHash = Get-Hash $cliBinary
+        $guiHash = Get-Hash $guiBinary
+        Write-Host '[SHIELD] Using verified prebuilt release.'
+    } else {
+        Write-Host '[SHIELD] Checking required source-build tools...'
+        Ensure-Git
+        Ensure-Rust
+        $sourceDir = Join-Path $tempDir 'source'
+        $branch = if ($Version -eq 'main') { 'main' } else { $Version }
+        Write-Host '[SHIELD] Downloading source...'
+        git clone --depth 1 --branch $branch ('https://github.com/' + $Repo + '.git') $sourceDir
+        if ($LASTEXITCODE -ne 0) { throw '[SHIELD] Source download failed.' }
+        Test-File (Join-Path $sourceDir 'Cargo.toml') 'SHIELD source manifest'
+        if (-not (Test-Path (Join-Path $sourceDir '.git') -PathType Container)) { throw '[SHIELD] Git checkout verification failed.' }
+        Write-Host '[SHIELD] Source checkpoint: PASS'
+        Push-Location $sourceDir
+        try {
+            Write-Host '[SHIELD] Building CLI + GUI...'
+            cargo build --release --bins
+            if ($LASTEXITCODE -ne 0) { throw '[SHIELD] Rust release build failed.' }
+        } finally { Pop-Location }
+        $cliBinary = Join-Path $sourceDir 'target\release\shield.exe'
+        $guiBinary = Join-Path $sourceDir 'target\release\shield-ui.exe'
+        Test-PeBinary $cliBinary 'SHIELD CLI'
+        Test-PeBinary $guiBinary 'SHIELD GUI'
+        $cliHash = Get-Hash $cliBinary
+        $guiHash = Get-Hash $guiBinary
+        Write-Host "[SHIELD] CLI checkpoint: PASS ($cliHash)"
+        Write-Host "[SHIELD] GUI checkpoint: PASS ($guiHash)"
     }
-
-    $cliBinary = Join-Path $sourceDir 'target\release\shield.exe'
-    $guiBinary = Join-Path $sourceDir 'target\release\shield-ui.exe'
-    Test-PeBinary $cliBinary 'SHIELD CLI'
-    Test-PeBinary $guiBinary 'SHIELD GUI'
-
-    $cliHash = Get-Hash $cliBinary
-    $guiHash = Get-Hash $guiBinary
-    Write-Host "[SHIELD] CLI checkpoint: PASS ($cliHash)"
-    Write-Host "[SHIELD] GUI checkpoint: PASS ($guiHash)"
 
     if ($choice -eq '1') {
         Write-Host ''
