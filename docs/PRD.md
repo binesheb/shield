@@ -1,14 +1,12 @@
 # SHIELD Product Requirements Document
 
-## 1. Vision
+## Vision
 
 SHIELD is an open-source, cross-platform endpoint security platform and the security subsystem of the Binesh OS ecosystem.
 
 It provides malware detection, threat intelligence, security telemetry, behavioral analysis, risk assessment, quarantine, and response through one modular security core.
 
-SHIELD must remain useful as an independent application while being deeply integrated into Binesh OS.
-
-## 2. Product principles
+## Product principles
 
 1. Open source first.
 2. Local first.
@@ -22,182 +20,78 @@ SHIELD must remain useful as an independent application while being deeply integ
 10. One security core, multiple interfaces.
 11. Binesh OS integration through stable contracts, not a fork.
 
-## 3. Product relationship
+## Product relationship
 
-### SHIELD
+### SHIELD owns
 
-Owns security intelligence and enforcement logic:
+Scanning, detection, correlation, risk assessment, security events, quarantine, response, threat intelligence, and security policy enforcement.
 
-- scanning
-- detection
-- correlation
-- risk assessment
-- security events
-- quarantine
-- response
-- threat intelligence
-- security policy enforcement
+### Binesh OS owns
 
-### Binesh OS
-
-Consumes SHIELD services as part of the operating-system security experience.
-
-Binesh OS may provide:
-
-- system UI
-- OS lifecycle integration
-- package/application installation integration
-- system policy integration
-- user notifications
-- system settings
-- boot/runtime integration
-- OS-specific security controls
+Operating-system lifecycle, native security UI, notifications, system settings, package/application lifecycle, OS-specific privilege/service management, and presentation of security state.
 
 Binesh OS must not duplicate SHIELD's detection engine.
 
-## 4. Users
+## Platforms
 
-- Individual users
-- Developers
-- System administrators
-- Security researchers
-- Binesh OS users
-- Organizations requiring self-hosted endpoint security
+Initial: Windows, Linux, macOS. Strategic platform: Binesh OS.
 
-## 5. Platforms
+Future: Android, BSD, NAS, containers, Kubernetes nodes, and edge devices.
 
-Initial: Windows, Linux, macOS.
+## Operating modes
 
-Strategic platform: Binesh OS.
+- **Live:** run without persistent installation.
+- **Application:** install as a user-facing security application/CLI.
+- **Service:** persistent endpoint protection service.
+- **Binesh OS native:** provisioned as an OS security component.
 
-Future: Android, BSD, NAS, containers, Kubernetes nodes, IoT/edge devices.
+## Core
 
-## 6. Operating modes
-
-### Live
-
-Run SHIELD without persistent installation.
-
-### Application
-
-Install SHIELD as a user-facing security application/CLI.
-
-### Service
-
-Install SHIELD as a persistent endpoint protection service.
-
-### Binesh OS native
-
-SHIELD is installed/provisioned as an OS security component and starts as part of the Binesh OS security stack.
-
-## 7. Core components
-
-### Security Core
-
-Configuration, orchestration, event model, correlation, risk assessment, response, logging, and state.
+The core provides configuration, orchestration, event model, correlation, risk assessment, response, logging, and state.
 
 ### Scanner
 
-SHA-256 hashing, YARA, ClamAV, and future security engines.
+SHA-256 hashing, YARA, ClamAV, and future engines.
 
-### Event model
+### Events
 
-Normalized events must include event ID, timestamp, host ID, platform, event type, severity, source, confidence, and relevant object metadata.
-
-### Correlation
-
-Multiple independent signals may be combined into a stronger security event.
+Normalized events contain event ID, timestamp, host ID, platform, event type, severity, source, confidence, and object metadata.
 
 ### Risk
 
-Risk uses documented and testable inputs such as detection confidence, independent detections, intelligence confidence, behavior severity, persistence, privilege level, and network indicators.
-
-Risk levels:
-
-- informational
-- low
-- medium
-- high
-- critical
-
-Risk is an assessment, not proof of maliciousness.
+Risk levels: informational, low, medium, high, critical. Risk is an assessment, not proof of maliciousness.
 
 ### Response
 
-Response actions include alert, quarantine, restore, block, terminate where explicitly supported, and policy-controlled remediation.
-
-Destructive actions require explicit policy.
+Alert, quarantine, restore, block, and policy-controlled remediation. Destructive actions require explicit policy.
 
 ### Quarantine
 
-Quarantine must isolate suspicious objects, preserve metadata, assign unique IDs, record original paths and detection reasons, support restoration, support permanent deletion, and maintain an audit trail.
+Isolate suspicious objects, preserve metadata, assign IDs, record original paths/reasons, support restoration/deletion, and maintain an audit trail.
 
-### Threat intelligence
+## Binesh OS integration
 
-Normalize hashes, IPs, domains, URLs, certificates, paths, processes, indicators, and rule references.
+Binesh OS integration is first-class.
 
-### CLI
+The initial contract provides:
 
-The CLI is the reference interface for v0.1.
-
-### Local API
-
-A local API will expose status, scans, threats, events, quarantine, configuration, and health.
-
-### Event bus
-
-SHIELD will provide normalized security events for consumers such as the Binesh OS shell, dashboard, logging system, and future management agents.
-
-## 8. Binesh OS integration
-
-Binesh OS integration is a first-class roadmap item.
-
-The initial contract should provide:
-
-- SHIELD service discovery
+- service discovery
 - security status
 - threat notifications
-- scan requests
-- scan results
+- scan requests/results
 - quarantine actions
 - health state
 - policy state
 - security event stream
 - version/capability information
 
-The Binesh OS UI should be able to show a single security state backed by SHIELD.
+Binesh OS should present a unified security state backed by SHIELD.
 
-Example:
+## AI
 
-```text
-Binesh OS Security
-        |
-        v
-     SHIELD
-        |
-  +-----+-----+--------+
-  |           |        |
-Threats    Health    Policy
-  |           |        |
-Shell       Shell    Settings
-```
+AI is optional for correlation, anomaly analysis, explanations, investigations, and rule assistance. It must not be required for baseline protection or silently override deterministic controls.
 
-## 9. AI
-
-AI is optional.
-
-Potential uses include:
-
-- event correlation
-- anomaly analysis
-- explanations
-- investigation summaries
-- rule-generation assistance
-- natural-language security queries
-
-AI must never be required for baseline protection and must not silently override deterministic security controls.
-
-## 10. Installation
+## Installation
 
 The user-facing goal is one command:
 
@@ -205,87 +99,37 @@ The user-facing goal is one command:
 irm https://raw.githubusercontent.com/binesheb/shield/main/installer/install.ps1 | iex
 ```
 
-The bootstrap presents the user with available modes.
+The bootstrap presents available modes.
 
 Long-term installers should use signed prebuilt artifacts rather than requiring Rust.
 
-## 11. Security requirements
+## Security requirements
 
-Required:
+Signed releases, authenticated update metadata, integrity verification, least privilege, secure IPC, input validation, safe path handling, tamper-aware state, security regression tests, reproducible builds where practical, and secure Binesh OS service integration.
 
-- signed releases
-- authenticated update metadata
-- integrity verification
-- least privilege
-- secure IPC
-- input validation
-- safe path handling
-- tamper-aware state
-- security regression tests
-- reproducible builds where practical
-- secure Binesh OS service integration
+## Privacy
 
-## 12. Privacy
+Security data remains local by default. Personal files are not uploaded by default. Telemetry is optional and explicit.
 
-Security data remains local by default.
+## MVP
 
-Personal files must not be uploaded by default.
+In scope: Rust core, CLI, configuration, normalized events, scanner abstraction, SHA-256 scanner, YARA/ClamAV adapters, quarantine architecture, threat history, logging, CI, documentation, Binesh OS integration contract.
 
-Telemetry is optional and explicit.
+Out of scope: mandatory cloud/AI, enterprise fleet management, mobile clients, advanced network IDS, automatic destructive remediation, and a fully integrated Binesh OS UI before the API contract stabilizes.
 
-## 13. MVP
+## Roadmap
 
-### In scope
+0. Foundation
+1. Scanner abstraction and detection engines
+2. Quarantine and response
+3. Endpoint monitoring
+4. Binesh OS security service integration
+5. Network detection
+6. Correlation and risk engine
+7. GUI/security center
+8. Optional AI
+9. Fleet management
 
-- Rust core
-- CLI
-- configuration
-- normalized event model
-- scanner abstraction
-- SHA-256 scanner
-- YARA adapter
-- ClamAV adapter
-- quarantine architecture
-- threat history
-- logging
-- CI
-- documentation
-- Binesh OS integration contract
+## Definition of done
 
-### Out of scope
-
-- mandatory cloud
-- mandatory AI
-- enterprise fleet management
-- mobile clients
-- advanced network IDS
-- automatic destructive remediation
-- fully integrated Binesh OS UI before the API contract stabilizes
-
-## 14. Roadmap
-
-Phase 0 — foundation.
-
-Phase 1 — scanner abstraction and detection engines.
-
-Phase 2 — quarantine and response.
-
-Phase 3 — endpoint monitoring.
-
-Phase 4 — Binesh OS security service integration.
-
-Phase 5 — network detection.
-
-Phase 6 — correlation and risk engine.
-
-Phase 7 — GUI/security center.
-
-Phase 8 — optional AI.
-
-Phase 9 — fleet management.
-
-## 15. Definition of done
-
-A feature is complete only when implementation, tests, documentation, security review, and CI validation are complete.
-
-For Binesh OS features, an integration test must verify the SHIELD contract without duplicating security logic inside the OS.
+A feature is complete only when implementation, tests, documentation, security review, and CI validation are complete. Binesh OS features additionally require contract/integration tests without duplicating security logic in the OS.
