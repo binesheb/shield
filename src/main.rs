@@ -3,8 +3,9 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 use shield::{
-    append_log, build_snapshot, read_state, scan_hashes, sha256_file, windows_defender_scan,
-    windows_defender_status, windows_defender_threats, windows_defender_update, write_state, VERSION,
+    append_log, build_snapshot, default_yara_rules_dir, read_state, scan_hashes, sha256_file,
+    windows_defender_scan, windows_defender_status, windows_defender_threats, windows_defender_update,
+    write_state, yara_scan, VERSION,
 };
 
 #[derive(Parser, Debug)]
@@ -37,6 +38,11 @@ enum Commands {
         path: Option<PathBuf>,
     },
     DefenderUpdate,
+    YaraScan {
+        path: PathBuf,
+        #[arg(long)]
+        rules: Option<PathBuf>,
+    },
     Threats,
     Engines,
     Doctor,
@@ -133,6 +139,19 @@ fn main() -> Result<()> {
             windows_defender_update()?;
             println!("Windows Defender signatures update requested.");
         }
+        Commands::YaraScan { path, rules } => {
+            let rules_dir = rules.unwrap_or_else(default_yara_rules_dir);
+            let matches = yara_scan(&path, &rules_dir)?;
+            if cli.json {
+                println!("{}", serde_json::to_string_pretty(&matches)?);
+            } else if matches.is_empty() {
+                println!("YARA: no matching rules.");
+            } else {
+                for finding in matches {
+                    println!("YARA MATCH: {} [{}] -> {}", finding.rule, finding.namespace, finding.path);
+                }
+            }
+        }
         Commands::Threats => {
             let threats = windows_defender_threats()?;
             if cli.json {
@@ -155,7 +174,7 @@ fn main() -> Result<()> {
             println!("  Microsoft Defender   ACTIVE");
             #[cfg(not(windows))]
             println!("  Microsoft Defender   UNAVAILABLE");
-            println!("  YARA                  PLANNED");
+            println!("  YARA-X                ACTIVE");
             println!("  ClamAV                PLANNED");
         }
         Commands::Doctor => {
