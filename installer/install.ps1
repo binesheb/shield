@@ -1,4 +1,5 @@
-# SHIELD single-command Windows bootstrap`r`n# Installer schema: 2
+# SHIELD single-command Windows bootstrap
+# Installer schema: 2
 # PowerShell 5.1+
 # Run:
 #   irm https://raw.githubusercontent.com/binesheb/shield/main/installer/install.ps1 | iex
