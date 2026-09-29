@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use std::{path::PathBuf, thread, time::Duration};
+use std::path::PathBuf;
 
 use shield::{
     append_log, build_snapshot, read_state, scan_hashes, sha256_file, windows_defender_scan,
@@ -194,7 +194,6 @@ fn main() -> Result<()> {
     }
 
     let _ = append_log("command completed");
-    let _ = thread::sleep(Duration::from_millis(1));
     Ok(())
 }
 
