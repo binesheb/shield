@@ -6,8 +6,9 @@ use std::{
     fs::{self, File},
     io::Read,
     path::{Path, PathBuf},
-    process::Command,
 };
+#[cfg(windows)]
+use std::process::Command;
 use walkdir::WalkDir;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
