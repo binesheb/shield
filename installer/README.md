@@ -69,9 +69,7 @@ and adds that directory to the user's PATH.
 
 ### Service
 
-Installs and verifies the executable but does **not** register a Windows service yet.
-
-The service option is intentionally non-destructive until the SHIELD protection daemon, privilege boundary, secure IPC, recovery, update, and uninstall design are complete.
+Installs the verified CLI and GUI, registers the SHIELD Windows service with the Service Control Manager, starts it, verifies its state, and creates an all-users Start Menu shortcut.
 
 ## Version
 
@@ -82,11 +80,9 @@ $env:SHIELD_VERSION='v0.1.0'
 irm https://raw.githubusercontent.com/binesheb/shield/main/installer/install.ps1 | iex
 ```
 
-## Production installer
+## Release-first installer
 
-The source bootstrap is temporary.
-
-The production installer should keep the exact same user experience but use signed prebuilt release artifacts:
+The production path uses signed/attested prebuilt release artifacts. The source bootstrap remains only as a fallback when no suitable release is available:
 
 ```text
 IRM
@@ -106,7 +102,7 @@ Verify installed binary
 Start selected mode
 ```
 
-No Rust or Git should be required for normal users in the production release.
+No Rust or Git is required when a matching release artifact is available.
 
 ## Security
 
@@ -130,4 +126,4 @@ A service installation provides:
 - Start Menu shortcut
 - post-install executable, hash, service, and doctor checkpoints
 
-The GUI is built with native Rust/egui and does not require Node.js or a browser runtime. The Windows service is implemented with the Windows Service Control Manager integration. Release artifacts are built by GitHub Actions with artifact attestations; GitHub documents attestations as signed provenance linking a binary to its repository and workflow. citeturn13search0turn13search1
+The GUI is built with native Rust/egui and does not require Node.js or a browser runtime. The Windows service is implemented with the Windows Service Control Manager integration. Release artifacts are built by GitHub Actions with artifact attestations; GitHub documents attestations as signed provenance linking a binary to its repository and workflow. 
