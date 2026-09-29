@@ -100,6 +100,54 @@ function Ensure-Rust {
         foreach ($line in $toolchain) {
             if ($line -match '\(default\)
 
+function Assert-Command {
+    param([Parameter(Mandatory=$true)][string]$Name)
+    if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
+        throw "[SHIELD] Required command '$Name' is not available."
+    }
+}
+
+function Get-FileSha256 {
+    param([Parameter(Mandatory=$true)][string]$Path)
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
+function Test-DownloadedFile {
+    param([Parameter(Mandatory=$true)][string]$Path,[Parameter(Mandatory=$true)][string]$Description)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "[SHIELD] $Description was not downloaded."
+    }
+    $item = Get-Item -LiteralPath $Path
+    if ($item.Length -le 0) {
+        throw "[SHIELD] $Description is empty."
+    }
+}
+
+function Test-ShieldBinary {
+    param([Parameter(Mandatory=$true)][string]$Path)
+    Test-DownloadedFile -Path $Path -Description 'SHIELD binary'
+    if ([IO.Path]::GetExtension($Path) -ne '.exe') {
+        throw '[SHIELD] Invalid SHIELD executable format.'
+    }
+
+    # Verify that Windows can inspect the PE executable before it is used.
+    $bytes = [IO.File]::ReadAllBytes($Path)
+    if ($bytes.Length -lt 2 -or $bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A) {
+        throw '[SHIELD] Downloaded SHIELD binary is not a valid Windows executable.'
+    }
+}
+
+function Test-Build {
+    param([Parameter(Mandatory=$true)][string]$SourceDir,[Parameter(Mandatory=$true)][string]$Binary)
+    if (-not (Test-Path (Join-Path $SourceDir 'Cargo.toml') -PathType Leaf)) {
+        throw '[SHIELD] Source checkout is incomplete: Cargo.toml is missing.'
+    }
+    if (-not (Test-Path (Join-Path $SourceDir '.git') -PathType Container)) {
+        throw '[SHIELD] Source checkout is incomplete: Git metadata is missing.'
+    }
+    Test-ShieldBinary -Path $Binary
+}
+
 $choice = Get-Selection
 
 if ($choice -eq '4') {
@@ -125,28 +173,33 @@ try {
     Write-Host '[SHIELD] Downloading source...'
     git clone --depth 1 --branch $Branch ('https://github.com/' + $Repo + '.git') $SourceDir
     if ($LASTEXITCODE -ne 0) {
-        throw 'Unable to download the SHIELD source repository.'
+        throw '[SHIELD] Unable to download the SHIELD source repository.'
+    }
+    if (-not (Test-Path $SourceDir -PathType Container)) {
+        throw '[SHIELD] Source directory was not created.'
     }
 
-    if (-not (Test-Path (Join-Path $SourceDir 'Cargo.toml'))) {
-        throw 'The selected SHIELD revision does not contain Cargo.toml. The installer expects the Rust application build to be present.'
+    $CargoToml = Join-Path $SourceDir 'Cargo.toml'
+    if (-not (Test-Path $CargoToml -PathType Leaf) -or (Get-Item $CargoToml).Length -le 0) {
+        throw '[SHIELD] Source checkout is incomplete or Cargo.toml is empty.'
     }
 
+    Write-Host '[SHIELD] Source download verified.'
     Write-Host '[SHIELD] Building SHIELD...'
     Push-Location $SourceDir
     try {
         cargo build --release
         if ($LASTEXITCODE -ne 0) {
-            throw 'SHIELD build failed.'
+            throw '[SHIELD] SHIELD build failed.'
         }
     } finally {
         Pop-Location
     }
 
     $Binary = Join-Path $SourceDir 'target\release\shield.exe'
-    if (-not (Test-Path $Binary)) {
-        throw 'Build completed but shield.exe was not found.'
-    }
+    Test-Build -SourceDir $SourceDir -Binary $Binary
+    $SourceHash = Get-FileSha256 -Path $Binary
+    Write-Host "[SHIELD] Build verified. SHA-256: $SourceHash"
 
     switch ($choice) {
         '1' {
@@ -160,7 +213,15 @@ try {
 
         '2' {
             New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-            Copy-Item $Binary (Join-Path $InstallDir 'shield.exe') -Force
+            $InstalledBinary = Join-Path $InstallDir 'shield.exe'
+            Copy-Item $Binary $InstalledBinary -Force
+            Test-ShieldBinary -Path $InstalledBinary
+
+            $InstalledHash = Get-FileSha256 -Path $InstalledBinary
+            if ($InstalledHash -ne $SourceHash) {
+                throw '[SHIELD] Installed binary failed SHA-256 verification.'
+            }
+            Write-Host "[SHIELD] Installation verified. SHA-256: $InstalledHash"
 
             $UserPath = [Environment]::GetEnvironmentVariable('Path','User')
             $Entries = @()
@@ -182,7 +243,14 @@ try {
 
         '3' {
             New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-            Copy-Item $Binary (Join-Path $InstallDir 'shield.exe') -Force
+            $InstalledBinary = Join-Path $InstallDir 'shield.exe'
+            Copy-Item $Binary $InstalledBinary -Force
+            Test-ShieldBinary -Path $InstalledBinary
+
+            $InstalledHash = Get-FileSha256 -Path $InstalledBinary
+            if ($InstalledHash -ne $SourceHash) {
+                throw '[SHIELD] Service installation binary failed SHA-256 verification.'
+            }
 
             Write-Host ''
             Write-Host '[SHIELD] Service deployment selected.'
