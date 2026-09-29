@@ -102,7 +102,7 @@ Verify installed binary
 Start selected mode
 ```
 
-No Rust or Git is required when a matching release artifact is available.
+No Rust or Git is required when a matching release artifact is available; otherwise the installer can fall back to a source build.
 
 ## Security
 
