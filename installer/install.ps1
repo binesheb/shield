@@ -1,4 +1,5 @@
 # SHIELD single-command Windows bootstrap
+# PowerShell 5.1+
 # Run:
 #   irm https://raw.githubusercontent.com/binesheb/shield/main/installer/install.ps1 | iex
 
@@ -40,25 +41,27 @@ function Get-Selection {
 
 function Refresh-UserPath {
     $UserPath = [Environment]::GetEnvironmentVariable('Path','User')
-    if ($UserPath) {
-        $env:Path = $UserPath + ';' + [Environment]::GetEnvironmentVariable('Path','Machine')
-    }
+    $MachinePath = [Environment]::GetEnvironmentVariable('Path','Machine')
+    $parts = @()
+    if ($UserPath) { $parts += $UserPath }
+    if ($MachinePath) { $parts += $MachinePath }
+    if ($parts.Count -gt 0) { $env:Path = $parts -join ';' }
 }
 
 function Ensure-Winget {
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-        throw 'Windows Package Manager (winget) is required to bootstrap missing build tools. Please install App Installer from Microsoft Store, then run this command again.'
+        throw '[SHIELD] Windows Package Manager (winget) is required to bootstrap missing build tools. Install Microsoft App Installer and run the command again.'
     }
 }
 
 function Ensure-Git {
-    if (Get-Command git -ErrorAction SilentlyContinue) {
-        return
-    }
+    if (Get-Command git -ErrorAction SilentlyContinue) { return }
 
     Write-Host '[SHIELD] Git is not installed. Installing Git automatically...'
     Ensure-Winget
     winget install --id Git.Git -e --source winget --accept-source-agreements --accept-package-agreements
+    if ($LASTEXITCODE -ne 0) { throw '[SHIELD] Git installation failed.' }
+
     Refresh-UserPath
 
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
@@ -69,51 +72,69 @@ function Ensure-Git {
     }
 
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        throw 'Git installation completed but git.exe is not available in this PowerShell session. Close PowerShell, open a new window, and run the SHIELD command again.'
+        throw '[SHIELD] Git was installed but is not available in this PowerShell session.'
     }
+
+    git --version
+    if ($LASTEXITCODE -ne 0) { throw '[SHIELD] Git verification failed.' }
 }
 
 function Ensure-Rust {
     $CargoDir = Join-Path $env:USERPROFILE '.cargo\bin'
     $CargoPath = Join-Path $CargoDir 'cargo.exe'
+    $RustupPath = Join-Path $CargoDir 'rustup.exe'
 
     if (-not (Test-Path $CargoPath)) {
         Write-Host '[SHIELD] Rust/Cargo is not installed. Installing Rust automatically...'
         Ensure-Winget
         winget install --id Rustlang.Rustup -e --source winget --accept-source-agreements --accept-package-agreements
+        if ($LASTEXITCODE -ne 0) { throw '[SHIELD] Rust installation failed.' }
         Refresh-UserPath
     }
 
-    if (Test-Path $CargoPath) {
+    if (Test-Path $CargoDir) {
         $env:Path = $CargoDir + ';' + $env:Path
     }
 
     if (-not (Test-Path $CargoPath)) {
-        throw 'Rust installation completed but cargo.exe is not available. Open a new PowerShell window and run the SHIELD command again.'
+        throw '[SHIELD] Rust installation completed but cargo.exe is unavailable.'
     }
 
-    # rustup may be installed without a default toolchain. Bootstrap it automatically.
-    $RustupPath = Join-Path $CargoDir 'rustup.exe'
     if (Test-Path $RustupPath) {
         $toolchain = & $RustupPath toolchain list 2>$null
+        if ($LASTEXITCODE -ne 0) { throw '[SHIELD] Unable to inspect Rust toolchains.' }
+
         $hasDefault = $false
         foreach ($line in $toolchain) {
-            if ($line -match '\(default\)
+            if ($line -match '\(default\)$') {
+                $hasDefault = $true
+                break
+            }
+        }
 
-function Assert-Command {
-    param([Parameter(Mandatory=$true)][string]$Name)
-    if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
-        throw "[SHIELD] Required command '$Name' is not available."
+        if (-not $hasDefault) {
+            Write-Host '[SHIELD] No default Rust toolchain is configured. Installing stable...'
+            & $RustupPath toolchain install stable
+            if ($LASTEXITCODE -ne 0) { throw '[SHIELD] Unable to install the stable Rust toolchain.' }
+
+            & $RustupPath default stable
+            if ($LASTEXITCODE -ne 0) { throw '[SHIELD] Unable to configure stable as the default Rust toolchain.' }
+        }
     }
-}
 
-function Get-FileSha256 {
-    param([Parameter(Mandatory=$true)][string]$Path)
-    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+    $cargoVersion = & $CargoPath --version 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $cargoVersion) {
+        throw '[SHIELD] Cargo is installed but no usable Rust toolchain is configured.'
+    }
+
+    Write-Host "[SHIELD] $cargoVersion"
 }
 
 function Test-DownloadedFile {
-    param([Parameter(Mandatory=$true)][string]$Path,[Parameter(Mandatory=$true)][string]$Description)
+    param(
+        [Parameter(Mandatory=$true)][string]$Path,
+        [Parameter(Mandatory=$true)][string]$Description
+    )
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
         throw "[SHIELD] $Description was not downloaded."
     }
@@ -123,22 +144,30 @@ function Test-DownloadedFile {
     }
 }
 
+function Get-FileSha256 {
+    param([Parameter(Mandatory=$true)][string]$Path)
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
 function Test-ShieldBinary {
     param([Parameter(Mandatory=$true)][string]$Path)
     Test-DownloadedFile -Path $Path -Description 'SHIELD binary'
+
     if ([IO.Path]::GetExtension($Path) -ne '.exe') {
         throw '[SHIELD] Invalid SHIELD executable format.'
     }
 
-    # Verify that Windows can inspect the PE executable before it is used.
     $bytes = [IO.File]::ReadAllBytes($Path)
     if ($bytes.Length -lt 2 -or $bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A) {
-        throw '[SHIELD] Downloaded SHIELD binary is not a valid Windows executable.'
+        throw '[SHIELD] SHIELD binary failed Windows PE validation.'
     }
 }
 
 function Test-Build {
-    param([Parameter(Mandatory=$true)][string]$SourceDir,[Parameter(Mandatory=$true)][string]$Binary)
+    param(
+        [Parameter(Mandatory=$true)][string]$SourceDir,
+        [Parameter(Mandatory=$true)][string]$Binary
+    )
     if (-not (Test-Path (Join-Path $SourceDir 'Cargo.toml') -PathType Leaf)) {
         throw '[SHIELD] Source checkout is incomplete: Cargo.toml is missing.'
     }
@@ -175,17 +204,20 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw '[SHIELD] Unable to download the SHIELD source repository.'
     }
+
     if (-not (Test-Path $SourceDir -PathType Container)) {
         throw '[SHIELD] Source directory was not created.'
     }
 
     $CargoToml = Join-Path $SourceDir 'Cargo.toml'
-    if (-not (Test-Path $CargoToml -PathType Leaf) -or (Get-Item $CargoToml).Length -le 0) {
-        throw '[SHIELD] Source checkout is incomplete or Cargo.toml is empty.'
+    Test-DownloadedFile -Path $CargoToml -Description 'SHIELD source manifest'
+    if (-not (Test-Path (Join-Path $SourceDir '.git') -PathType Container)) {
+        throw '[SHIELD] Source checkout verification failed.'
     }
 
     Write-Host '[SHIELD] Source download verified.'
     Write-Host '[SHIELD] Building SHIELD...'
+
     Push-Location $SourceDir
     try {
         cargo build --release
@@ -208,7 +240,7 @@ try {
             Write-Host '[SHIELD] Nothing will be permanently installed.'
             Write-Host ''
             & $Binary status
-            exit $LASTEXITCODE
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         }
 
         '2' {
@@ -231,14 +263,14 @@ try {
             if ($Entries -notcontains $InstallDir) {
                 [Environment]::SetEnvironmentVariable('Path', (($Entries + $InstallDir) -join ';'), 'User')
             }
-
             $env:Path = $InstallDir + ';' + $env:Path
 
             Write-Host ''
             Write-Host '[SHIELD] Application installed successfully.'
             Write-Host "[SHIELD] Location: $InstallDir"
             Write-Host ''
-            & (Join-Path $InstallDir 'shield.exe') status
+            & $InstalledBinary status
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         }
 
         '3' {
@@ -254,142 +286,17 @@ try {
 
             Write-Host ''
             Write-Host '[SHIELD] Service deployment selected.'
-            Write-Host '[SHIELD] Binary installed.'
+            Write-Host '[SHIELD] Binary installation verified.'
             Write-Host ''
             Write-Host '[SHIELD] Continuous protection service registration is not yet enabled in this development release.'
             Write-Host '[SHIELD] No incomplete or non-functional Windows service was created.'
-            Write-Host ''
-            Write-Host '[SHIELD] The service layer will be enabled when the SHIELD protection daemon and secure service boundary are ready.'
         }
     }
 }
-finally {
-    if (Test-Path $TempDir) {
-        Remove-Item $TempDir -Recurse -Force -ErrorAction SilentlyContinue
-    }
-}
-) {
-                $hasDefault = $true
-                break
-            }
-        }
-
-        if (-not $hasDefault) {
-            Write-Host '[SHIELD] No default Rust toolchain is configured. Installing stable...'
-            & $RustupPath toolchain install stable
-            if ($LASTEXITCODE -ne 0) {
-                throw 'Unable to install the stable Rust toolchain.'
-            }
-
-            & $RustupPath default stable
-            if ($LASTEXITCODE -ne 0) {
-                throw 'Unable to configure stable as the default Rust toolchain.'
-            }
-        }
-    }
-
-    $cargoVersion = & $CargoPath --version 2>$null
-    if ($LASTEXITCODE -ne 0 -or -not $cargoVersion) {
-        throw 'Cargo is installed but no usable Rust toolchain is configured.'
-    }
-
-    Write-Host "[SHIELD] $cargoVersion"
-}
-
-$choice = Get-Selection
-
-if ($choice -eq '4') {
+catch {
     Write-Host ''
-    Write-Host '[SHIELD] Exiting.'
-    exit 0
-}
-
-Write-Host ''
-Write-Host '[SHIELD] Preparing SHIELD...'
-Write-Host '[SHIELD] Checking required build tools...'
-
-Ensure-Git
-Ensure-Rust
-
-$TempDir = Join-Path $env:TEMP ('shield-install-' + [guid]::NewGuid().ToString('N'))
-New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
-
-try {
-    $SourceDir = Join-Path $TempDir 'source'
-    $Branch = if ($Version -eq 'main') { 'main' } else { $Version }
-
-    Write-Host '[SHIELD] Downloading source...'
-    git clone --depth 1 --branch $Branch ('https://github.com/' + $Repo + '.git') $SourceDir
-    if ($LASTEXITCODE -ne 0) {
-        throw 'Unable to download the SHIELD source repository.'
-    }
-
-    if (-not (Test-Path (Join-Path $SourceDir 'Cargo.toml'))) {
-        throw 'The selected SHIELD revision does not contain Cargo.toml. The installer expects the Rust application build to be present.'
-    }
-
-    Write-Host '[SHIELD] Building SHIELD...'
-    Push-Location $SourceDir
-    try {
-        cargo build --release
-        if ($LASTEXITCODE -ne 0) {
-            throw 'SHIELD build failed.'
-        }
-    } finally {
-        Pop-Location
-    }
-
-    $Binary = Join-Path $SourceDir 'target\release\shield.exe'
-    if (-not (Test-Path $Binary)) {
-        throw 'Build completed but shield.exe was not found.'
-    }
-
-    switch ($choice) {
-        '1' {
-            Write-Host ''
-            Write-Host '[SHIELD] Starting LIVE mode...'
-            Write-Host '[SHIELD] Nothing will be permanently installed.'
-            Write-Host ''
-            & $Binary status
-            exit $LASTEXITCODE
-        }
-
-        '2' {
-            New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-            Copy-Item $Binary (Join-Path $InstallDir 'shield.exe') -Force
-
-            $UserPath = [Environment]::GetEnvironmentVariable('Path','User')
-            $Entries = @()
-            if ($UserPath) {
-                $Entries = $UserPath -split ';' | Where-Object { $_ }
-            }
-            if ($Entries -notcontains $InstallDir) {
-                [Environment]::SetEnvironmentVariable('Path', (($Entries + $InstallDir) -join ';'), 'User')
-            }
-
-            $env:Path = $InstallDir + ';' + $env:Path
-
-            Write-Host ''
-            Write-Host '[SHIELD] Application installed successfully.'
-            Write-Host "[SHIELD] Location: $InstallDir"
-            Write-Host ''
-            & (Join-Path $InstallDir 'shield.exe') status
-        }
-
-        '3' {
-            New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-            Copy-Item $Binary (Join-Path $InstallDir 'shield.exe') -Force
-
-            Write-Host ''
-            Write-Host '[SHIELD] Service deployment selected.'
-            Write-Host '[SHIELD] Binary installed.'
-            Write-Host ''
-            Write-Host '[SHIELD] Continuous protection service registration is not yet enabled in this development release.'
-            Write-Host '[SHIELD] No incomplete or non-functional Windows service was created.'
-            Write-Host ''
-            Write-Host '[SHIELD] The service layer will be enabled when the SHIELD protection daemon and secure service boundary are ready.'
-        }
-    }
+    Write-Host ('[SHIELD] FAILED: ' + $_.Exception.Message) -ForegroundColor Red
+    exit 1
 }
 finally {
     if (Test-Path $TempDir) {
