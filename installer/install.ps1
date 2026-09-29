@@ -127,7 +127,8 @@ function Ensure-Admin {
 }
 
 function Test-File {
-    param([string]$Path,[string]$Description)
+    param(
+    [switch]$DeveloperBuild,[string]$Path,[string]$Description)
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "[SHIELD] $Description is missing." }
     if ((Get-Item -LiteralPath $Path).Length -le 0) { throw "[SHIELD] $Description is empty." }
 }
@@ -246,6 +247,9 @@ New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 
 try {
     $releaseReady = Try-GetReleaseBinaries $tempDir
+    if (-not $releaseReady -and -not $DeveloperBuild) {
+        throw '[SHIELD] No verified Windows release is available for this architecture. Production installation is blocked. Use -DeveloperBuild only on development machines.'
+    }
     if ($releaseReady) {
         $cliBinary = $script:ReleaseCliBinary
         $guiBinary = $script:ReleaseGuiBinary
@@ -253,7 +257,7 @@ try {
         $guiHash = Get-Hash $guiBinary
         Write-Host '[SHIELD] Using verified prebuilt release.'
     } else {
-        Write-Host '[SHIELD] Checking required source-build tools...'
+        Write-Host '[SHIELD] DeveloperBuild enabled; checking source-build tools...'
         Ensure-Git
         Ensure-Rust
         $sourceDir = Join-Path $tempDir 'source'
