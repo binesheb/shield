@@ -289,7 +289,7 @@ pub fn windows_defender_scan(scan_type: &str, path: Option<&Path>) -> Result<()>
 
     let path_clause = match path {
         Some(value) if scan_type == "CustomScan" => {
-            let escaped = value.to_string_lossy().replace(''', "''");
+            let escaped = value.to_string_lossy().replace('\'', "''");
             format!(" -ScanPath '{}'", escaped)
         }
         _ => String::new(),
