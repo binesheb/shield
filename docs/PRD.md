@@ -111,6 +111,12 @@ Signed releases, authenticated update metadata, integrity verification, least pr
 
 Security data remains local by default. Personal files are not uploaded by default. Telemetry is optional and explicit.
 
+## Field-ready Windows stack
+
+The Windows field deployment includes a native Security Center GUI, CLI, persistent Windows service, Microsoft Defender health/scanning controls, local state/logging, release-first installation, SHA-256 verification, Authenticode verification, architecture-specific releases, and post-install health checks.
+
+The installer must never claim a production release is trusted unless the downloaded binaries pass both integrity and signature verification.
+
 ## MVP
 
 In scope: Rust core, CLI, configuration, normalized events, scanner abstraction, SHA-256 scanner, YARA/ClamAV adapters, quarantine architecture, threat history, logging, CI, documentation, Binesh OS integration contract.
@@ -126,9 +132,10 @@ Out of scope: mandatory cloud/AI, enterprise fleet management, mobile clients, a
 4. Binesh OS security service integration
 5. Network detection
 6. Correlation and risk engine
-7. GUI/security center
-8. Optional AI
-9. Fleet management
+7. GUI/security center — implemented for Windows
+8. Release packaging, provenance and signing — implemented in CI
+9. Optional AI
+10. Fleet management
 
 ## Definition of done
 
