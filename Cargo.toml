@@ -1,0 +1,20 @@
+[package]
+name = "shield"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Open-source, cross-platform endpoint security platform"
+license = "Apache-2.0"
+repository = "https://github.com/binesheb/shield"
+readme = "README.md"
+keywords = ["security", "antivirus", "malware", "endpoint-security", "yara"]
+categories = ["command-line-utilities", "os"]
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+sha2 = "0.10"
+walkdir = "2"
+
+[dev-dependencies]
+tempfile = "3"
