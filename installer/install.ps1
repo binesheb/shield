@@ -19,7 +19,7 @@ function Show-Menu {
     Write-Host '  How would you like to run SHIELD?'
     Write-Host ''
     Write-Host '  [1] Live'
-    Write-Host '      Build and run without persistent installation'
+    Write-Host '      Run the verified release without persistent installation'
     Write-Host ''
     Write-Host '  [2] Install as Application'
     Write-Host '      Install the GUI + CLI for the current user'
@@ -127,7 +127,9 @@ function Ensure-Admin {
 }
 
 function Test-File {
-    param(
+    param([switch]$DeveloperBuild)
+
+param(
     [switch]$DeveloperBuild,[string]$Path,[string]$Description)
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "[SHIELD] $Description is missing." }
     if ((Get-Item -LiteralPath $Path).Length -le 0) { throw "[SHIELD] $Description is empty." }
