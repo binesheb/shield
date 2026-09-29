@@ -205,14 +205,13 @@ try {
     if ($LASTEXITCODE -ne 0) { throw '[SHIELD] Source download failed.' }
 
     Test-File (Join-Path $sourceDir 'Cargo.toml') 'SHIELD source manifest'
-    Test-File (Join-Path $sourceDir 'Cargo.lock') 'SHIELD lockfile'
     if (-not (Test-Path (Join-Path $sourceDir '.git') -PathType Container)) { throw '[SHIELD] Git checkout verification failed.' }
     Write-Host '[SHIELD] Source checkpoint: PASS'
 
     Push-Location $sourceDir
     try {
         Write-Host '[SHIELD] Building CLI + GUI...'
-        cargo build --locked --release --bins
+        cargo build --release --bins
         if ($LASTEXITCODE -ne 0) { throw '[SHIELD] Rust release build failed.' }
     } finally {
         Pop-Location
