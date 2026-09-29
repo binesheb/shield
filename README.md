@@ -35,11 +35,11 @@ SHIELD presents an interactive choice:
 [4] Exit
 ```
 
-The current bootstrap builds from source and requires Git and Rust/Cargo.
+The installer is release-first: tagged Windows releases are downloaded and integrity-checked automatically. Until a release is published, it falls back to a source build and bootstraps Git/Rust when required.
 
 ## Interfaces
 
-The CLI is the reference interface for v0.1:
+SHIELD provides a native Windows Security Center GUI plus a CLI:
 
 ```text
 shield status
@@ -49,7 +49,7 @@ shield engines
 shield doctor
 ```
 
-A local API/event interface will become the integration contract for the future GUI and Binesh OS.
+The GUI reads the local SHIELD security state and controls supported Windows Defender scans/updates. The service maintains the endpoint heartbeat and security state.
 
 ## Architecture
 
@@ -85,7 +85,9 @@ A local API/event interface will become the integration contract for the future 
 ## MVP
 
 - Rust security core
+- Native Windows GUI (Security Center)
 - CLI
+- Windows service
 - configuration
 - normalized security events
 - scanner abstraction
