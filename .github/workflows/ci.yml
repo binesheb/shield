@@ -42,6 +42,18 @@ jobs:
           if (-not (Test-Path $binary -PathType Leaf)) { throw 'shield.exe was not produced.' }
           $bytes = [IO.File]::ReadAllBytes($binary)
           if ($bytes.Length -lt 2 -or $bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A) { throw 'Invalid Windows PE executable.' }
+      - name: Validate installer PowerShell syntax
+        shell: pwsh
+        run: |
+          $path = 'installer\install.ps1'
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path), [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw 'SHIELD installer has PowerShell parser errors.'
+          }
+
       - name: Validate installer structure
         shell: pwsh
         run: |
@@ -50,3 +62,4 @@ jobs:
           if (($script | Select-String -Pattern 'function Ensure-Rust' -AllMatches).Matches.Count -ne 1) { throw 'Installer Ensure-Rust definition is invalid.' }
           if (($script | Select-String -Pattern 'Get-FileHash' -AllMatches).Matches.Count -lt 2) { throw 'Installer hash verification is missing.' }
           if ($script -notmatch 'Remove-Item \$TempDir') { throw 'Installer cleanup is missing.' }
+          if ($script -match 'Assert-Command|Required command') { throw 'Unexpected stale installer fragment detected.' }
