@@ -38,6 +38,13 @@ pub struct DefenderStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YaraMatch {
+    pub rule: String,
+    pub namespace: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThreatRecord {
     pub name: String,
     pub id: Option<i64>,
@@ -205,6 +212,83 @@ fn powershell(script: &str) -> Result<String> {
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
+}
+
+pub fn default_yara_rules_dir() -> PathBuf {
+    data_dir().join("rules")
+}
+
+pub fn yara_scan(target: &Path, rules_dir: &Path) -> Result<Vec<YaraMatch>> {
+    if !rules_dir.exists() {
+        anyhow::bail!("YARA rules directory does not exist: {}", rules_dir.display());
+    }
+
+    let mut compiler = yara_x::Compiler::new();
+    let mut rule_files = 0usize;
+
+    for entry in WalkDir::new(rules_dir).follow_links(false) {
+        let entry = entry?;
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let extension = entry
+            .path()
+            .extension()
+            .and_then(|v| v.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        if extension != "yar" && extension != "yara" {
+            continue;
+        }
+
+        let source = fs::read_to_string(entry.path())
+            .with_context(|| format!("reading YARA rule {}", entry.path().display()))?;
+        compiler
+            .add_source(source)
+            .with_context(|| format!("compiling YARA rule {}", entry.path().display()))?;
+        rule_files += 1;
+    }
+
+    if rule_files == 0 {
+        anyhow::bail!("no .yar or .yara rule files found in {}", rules_dir.display());
+    }
+
+    let rules = compiler.build();
+    let mut scanner = yara_x::Scanner::new(&rules);
+    scanner.set_timeout(std::time::Duration::from_secs(30));
+    scanner.max_matches_per_pattern(128);
+    scanner.use_mmap(false);
+
+    let mut matches = Vec::new();
+    let targets: Box<dyn Iterator<Item = PathBuf>> = if target.is_file() {
+        Box::new(std::iter::once(target.to_path_buf()))
+    } else if target.is_dir() {
+        Box::new(
+            WalkDir::new(target)
+                .follow_links(false)
+                .into_iter()
+                .filter_map(|entry| entry.ok())
+                .filter(|entry| entry.file_type().is_file())
+                .map(|entry| entry.path().to_path_buf()),
+        )
+    } else {
+        anyhow::bail!("YARA target does not exist: {}", target.display());
+    };
+
+    for path in targets {
+        let results = scanner
+            .scan_file(&path)
+            .with_context(|| format!("YARA scanning {}", path.display()))?;
+        for rule in results.matching_rules() {
+            matches.push(YaraMatch {
+                rule: rule.identifier().to_owned(),
+                namespace: rule.namespace().to_owned(),
+                path: path.to_string_lossy().into_owned(),
+            });
+        }
+    }
+
+    Ok(matches)
 }
 
 #[cfg(windows)]
