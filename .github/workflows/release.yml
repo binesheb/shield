@@ -34,6 +34,34 @@ jobs:
       - name: Build release
         run: cargo build --release --bins --target ${{ matrix.target }}
 
+      - name: Sign Windows binaries
+        shell: pwsh
+        env:
+          WINDOWS_PFX_BASE64: ${{ secrets.WINDOWS_PFX_BASE64 }}
+          WINDOWS_PFX_PASSWORD: ${{ secrets.WINDOWS_PFX_PASSWORD }}
+          WINDOWS_TIMESTAMP_URL: ${{ secrets.WINDOWS_TIMESTAMP_URL }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_PFX_BASE64) -or [string]::IsNullOrWhiteSpace($env:WINDOWS_PFX_PASSWORD)) {
+            throw 'Production release is blocked: WINDOWS_PFX_BASE64 and WINDOWS_PFX_PASSWORD secrets are required.'
+          }
+          $certDir = Join-Path $env:RUNNER_TEMP 'shield-signing'
+          New-Item -ItemType Directory -Path $certDir -Force | Out-Null
+          $pfx = Join-Path $certDir 'shield.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_PFX_BASE64))
+          $signtool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Filter signtool.exe -Recurse -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw 'Windows SDK signtool.exe was not found.' }
+          $timestamp = if ($env:WINDOWS_TIMESTAMP_URL) { $env:WINDOWS_TIMESTAMP_URL } else { 'http://timestamp.digicert.com' }
+          $password = ConvertTo-SecureString $env:WINDOWS_PFX_PASSWORD -AsPlainText -Force
+          & $signtool.FullName sign /fd SHA256 /f $pfx /p $env:WINDOWS_PFX_PASSWORD /tr $timestamp /td SHA256 "target\${{ matrix.target }}\release\shield.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Signing shield.exe failed.' }
+          & $signtool.FullName sign /fd SHA256 /f $pfx /p $env:WINDOWS_PFX_PASSWORD /tr $timestamp /td SHA256 "target\${{ matrix.target }}\release\shield-ui.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Signing shield-ui.exe failed.' }
+          $cliSig = Get-AuthenticodeSignature "target\${{ matrix.target }}\release\shield.exe"
+          $guiSig = Get-AuthenticodeSignature "target\${{ matrix.target }}\release\shield-ui.exe"
+          if ($cliSig.Status -ne 'Valid' -or $guiSig.Status -ne 'Valid') { throw 'Authenticode signature verification failed.' }
+          Write-Host "Publisher:" $cliSig.SignerCertificate.Subject
+
       - name: Package
         shell: pwsh
         run: |
