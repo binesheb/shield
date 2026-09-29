@@ -8,68 +8,106 @@ Windows users run exactly one command:
 irm https://raw.githubusercontent.com/binesheb/shield/main/installer/install.ps1 | iex
 ```
 
-SHIELD then presents an interactive menu:
+SHIELD presents an interactive menu:
 
 ```text
-How would you like to run SHIELD?
-
 [1] Live
-    Build and run without installing
-
 [2] Install as Application
-    Install the SHIELD CLI/application
-
 [3] Install as Service
-    Install for continuous endpoint protection
-
 [4] Exit
 ```
 
 The user selects how SHIELD should proceed.
 
+## Bootstrap behavior
+
+The installer is designed for a clean Windows machine.
+
+It verifies the required build environment before downloading/building SHIELD:
+
+- Windows PowerShell 5.1+
+- Windows Package Manager (winget) when a bootstrap dependency is missing
+- Git
+- Rustup/Cargo
+- a configured stable Rust toolchain
+
+If Git or Rust is missing, the installer attempts to install it with winget.
+
+If Rustup exists without a default toolchain, the installer installs and selects stable automatically.
+
+Every important stage is checked:
+
+1. dependency availability
+2. source checkout
+3. source manifest
+4. successful Rust build
+5. SHIELD executable existence
+6. Windows PE executable signature
+7. SHA-256 of the built executable
+8. SHA-256 of the installed executable
+9. application status command after installation
+
+A failed checkpoint stops the installation. Temporary source/build files are cleaned up.
+
 ## Current implementation
 
-The development bootstrap builds SHIELD from source and therefore requires:
-
-- Windows
-- PowerShell
-- Git
-- Rust/Cargo
+This is a **development/source bootstrap**. It compiles SHIELD locally and therefore downloads Git/Rust when needed.
 
 ### Live
 
-Nothing is permanently installed.
+Builds and runs SHIELD without permanently installing the executable.
 
 ### Application
 
-The SHIELD binary is installed under the user's local application directory and added to the user's PATH.
+Installs the verified executable under:
+
+```text
+%LOCALAPPDATA%\SHIELD\bin
+```
+
+and adds that directory to the user's PATH.
 
 ### Service
 
-The binary is installed, but the Windows service is not registered yet. Continuous protection requires the service architecture, privilege boundary, IPC, recovery, update, and uninstall behavior to be implemented first.
+Installs and verifies the executable but does **not** register a Windows service yet.
 
-The installer intentionally does not create a non-functional service.
+The service option is intentionally non-destructive until the SHIELD protection daemon, privilege boundary, secure IPC, recovery, update, and uninstall design are complete.
 
 ## Version
 
-Set `SHIELD_VERSION` before running the same command to select a branch or tag:
+Set `SHIELD_VERSION` to a branch or tag:
 
 ```powershell
-$env:SHIELD_VERSION='v0.1.0'; irm https://raw.githubusercontent.com/binesheb/shield/main/installer/install.ps1 | iex
+$env:SHIELD_VERSION='v0.1.0'
+irm https://raw.githubusercontent.com/binesheb/shield/main/installer/install.ps1 | iex
 ```
 
-## Production release plan
+## Production installer
 
-The development source bootstrap will eventually be replaced/extended by signed prebuilt artifacts.
+The source bootstrap is temporary.
 
-Production installation should verify:
+The production installer should keep the exact same user experience but use signed prebuilt release artifacts:
 
-- HTTPS
-- authenticated release metadata
-- artifact hash
-- publisher signature
-- release version
-- platform and architecture
-- rollback compatibility
+```text
+IRM
+ ↓
+Detect OS + architecture
+ ↓
+Download signed release metadata
+ ↓
+Verify publisher signature
+ ↓
+Verify SHA-256
+ ↓
+Install/run
+ ↓
+Verify installed binary
+ ↓
+Start selected mode
+```
 
-The user experience should remain the same: **one command → select mode → SHIELD installs or runs.**
+No Rust or Git should be required for normal users in the production release.
+
+## Security
+
+Do not pipe an unreviewed installer from an untrusted fork into PowerShell. Production releases must use signed artifacts and authenticated update metadata.
