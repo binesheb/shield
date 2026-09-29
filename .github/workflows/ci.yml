@@ -23,3 +23,30 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
       - name: Test
         run: cargo test --all-features
+      - name: Build release
+        run: cargo build --release
+
+  windows:
+    name: Windows bootstrap checks
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build release
+        run: cargo build --release
+      - name: Verify release executable
+        shell: pwsh
+        run: |
+          $binary = Join-Path $PWD 'target\release\shield.exe'
+          if (-not (Test-Path $binary -PathType Leaf)) { throw 'shield.exe was not produced.' }
+          $bytes = [IO.File]::ReadAllBytes($binary)
+          if ($bytes.Length -lt 2 -or $bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A) { throw 'Invalid Windows PE executable.' }
+      - name: Validate installer structure
+        shell: pwsh
+        run: |
+          $script = Get-Content -Raw 'installer\install.ps1'
+          if (($script | Select-String -Pattern 'function Ensure-Git' -AllMatches).Matches.Count -ne 1) { throw 'Installer Ensure-Git definition is invalid.' }
+          if (($script | Select-String -Pattern 'function Ensure-Rust' -AllMatches).Matches.Count -ne 1) { throw 'Installer Ensure-Rust definition is invalid.' }
+          if (($script | Select-String -Pattern 'Get-FileHash' -AllMatches).Matches.Count -lt 2) { throw 'Installer hash verification is missing.' }
+          if ($script -notmatch 'Remove-Item \$TempDir') { throw 'Installer cleanup is missing.' }
