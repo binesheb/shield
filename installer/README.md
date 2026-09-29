@@ -51,15 +51,15 @@ A failed checkpoint stops the installation. Temporary source/build files are cle
 
 ## Current implementation
 
-This is a **development/source bootstrap**. It compiles SHIELD locally and therefore downloads Git/Rust when needed.
+The installer is **release-first**. It downloads the matching x64/ARM64 Windows release and verifies its SHA-256 checksum before use. If no suitable release exists, it falls back to a source build and bootstraps Git/Rust.
 
 ### Live
 
-Builds and runs SHIELD without permanently installing the executable.
+Uses a verified release when available, launches the native Security Center GUI, and leaves no permanent installation.
 
 ### Application
 
-Installs the verified executable under:
+Installs the verified CLI and GUI under:
 
 ```text
 %LOCALAPPDATA%\SHIELD\bin
@@ -111,3 +111,23 @@ No Rust or Git should be required for normal users in the production release.
 ## Security
 
 Do not pipe an unreviewed installer from an untrusted fork into PowerShell. Production releases must use signed artifacts and authenticated update metadata.
+
+
+## Field stack
+
+A service installation provides:
+
+- `shield.exe` CLI
+- `shield-ui.exe` native Security Center GUI
+- Windows Service Control Manager integration
+- automatic service startup
+- service heartbeat/state file
+- Microsoft Defender health telemetry
+- Quick Scan / Full Scan / Custom Scan controls
+- Defender signature update control
+- Defender threat history
+- SHA-256 file/directory scanning
+- Start Menu shortcut
+- post-install executable, hash, service, and doctor checkpoints
+
+The GUI is built with native Rust/egui and does not require Node.js or a browser runtime. The Windows service is implemented with the Windows Service Control Manager integration. Release artifacts are built by GitHub Actions with artifact attestations; GitHub documents attestations as signed provenance linking a binary to its repository and workflow. citeturn13search0turn13search1
