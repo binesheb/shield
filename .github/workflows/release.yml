@@ -47,7 +47,7 @@ jobs:
           $zip = Join-Path $PWD "shield-windows-${{ matrix.name }}.zip"
           Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
           $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  $(Split-Path $zip -Leaf)" | Out-File -Encoding ascii (Join-Path $PWD 'sha256sums.txt')
+          "$hash  $(Split-Path $zip -Leaf)" | Out-File -Encoding ascii (Join-Path $PWD 'sha256-${{ matrix.name }}.txt')
 
       - name: Generate artifact attestation
         uses: actions/attest@v4
@@ -60,7 +60,7 @@ jobs:
           name: shield-windows-${{ matrix.name }}
           path: |
             shield-windows-${{ matrix.name }}.zip
-            sha256sums.txt
+            sha256-${{ matrix.name }}.txt
 
   publish:
     name: Publish GitHub release
@@ -78,5 +78,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $assets = Get-ChildItem release -File | Where-Object { $_.Extension -eq '.zip' -or $_.Name -eq 'sha256sums.txt' }
+          $assets = Get-ChildItem release -File | Where-Object { $_.Extension -eq '.zip' -or $_.Name -like 'sha256-*.txt' }
           gh release create "${{ github.ref_name }}" $assets.FullName --title "SHIELD ${{ github.ref_name }}" --generate-notes
