@@ -1,3 +1,5 @@
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
 use eframe::egui;
 use shield::{
     read_state, windows_defender_scan, windows_defender_status, windows_defender_threats,
