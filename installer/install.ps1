@@ -252,7 +252,11 @@ New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 try {
     $releaseReady = Try-GetReleaseBinaries $tempDir
     if (-not $releaseReady -and -not $DeveloperBuild) {
-        throw '[SHIELD] No verified Windows release is available for this architecture. Production installation is blocked. Use -DeveloperBuild only on development machines.'
+        Write-Host ''
+        Write-Host '[SHIELD] WARNING: No verified Windows release is currently available.' -ForegroundColor Yellow
+        Write-Host '[SHIELD] Continuing with a source build for this installation.' -ForegroundColor Yellow
+        Write-Host '[SHIELD] Git and Rust/Cargo are required for this fallback.' -ForegroundColor Yellow
+        Write-Host ''
     }
     if ($releaseReady) {
         $cliBinary = $script:ReleaseCliBinary
