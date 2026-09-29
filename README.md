@@ -49,7 +49,7 @@ shield engines
 shield doctor
 ```
 
-The GUI reads the local SHIELD security state and controls supported Windows Defender scans/updates. The service maintains the endpoint heartbeat and security state.
+The GUI reads the local SHIELD security state, controls supported Windows Defender scans/updates, and exposes the independent YARA-X detection engine. YARA-X 1.20.0 is pure Rust and supports compiled rules plus file scanning. citeturn3search0turn2search1 The service maintains the endpoint heartbeat and security state.
 
 ## Architecture
 
