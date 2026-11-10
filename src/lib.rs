@@ -86,7 +86,7 @@ pub fn data_dir() -> PathBuf {
     #[cfg(windows)]
     {
         return PathBuf::from(
-            std::env::var("PROGRAMDATA").unwrap_or_else(|_| "C:\ProgramData".to_owned()),
+            std::env::var("PROGRAMDATA").unwrap_or_else(|_| r"C:\ProgramData".to_owned()),
         )
         .join("SHIELD");
     }
